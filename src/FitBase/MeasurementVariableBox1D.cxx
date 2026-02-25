@@ -5,6 +5,7 @@ void MeasurementVariableBox1D::Reset() {
 }
 
 void MeasurementVariableBox1D::FillBoxFromEvent(FitEvent* evt) {
+  (void)evt;
   return;
 }
 
@@ -32,9 +33,5 @@ double MeasurementVariableBox1D::GetZ(){
 
 int MeasurementVariableBox1D::GetMode(){
   return 0;
-}
-
-void MeasurementVariableBox1D::SetX(double x){
-  fX = x;
 }
 

@@ -19,6 +19,8 @@
 
 #include "FNAL_CCQE_Evt_1DQ2_nu.h"
 
+// From Physical Review D, Volume 28, Number 3, 1 August 1983
+// Title: High-energy quasielastic nu_mu n -> mu^- p scattering in deuterium
 
 //********************************************************************
 FNAL_CCQE_Evt_1DQ2_nu::FNAL_CCQE_Evt_1DQ2_nu(nuiskey samplekey) {
@@ -40,9 +42,9 @@ FNAL_CCQE_Evt_1DQ2_nu::FNAL_CCQE_Evt_1DQ2_nu(nuiskey samplekey) {
   fSettings.DefineAllowedTargets("D,H");
 
   // plot information
-  fSettings.SetTitle("FNAL #nu_mu CCQE");
+  fSettings.SetTitle("FNAL #nu_{#mu} CCQE");
   fSettings.DefineAllowedSpecies("numu");
-  fSettings.SetDataInput(  FitPar::GetDataBase() + "FNAL/FNAL_CCQE_Data_PRD29_436.root;FNAL_CCQE_Data_1DQ2");
+  fSettings.SetDataInput(  FitPar::GetDataBase() + "FNAL/CCQE/FNAL_CCQE_Data_PRD29_436.root;FNAL_CCQE_Data_1DQ2");
 
   // is Q2 Correction applied
   applyQ2correction = fSettings.Found("type", "Q2CORR");
@@ -81,7 +83,6 @@ FNAL_CCQE_Evt_1DQ2_nu::FNAL_CCQE_Evt_1DQ2_nu(nuiskey samplekey) {
 
   // Final setup  ---------------------------------------------------
   FinaliseMeasurement();
-
 }
 
 //********************************************************************

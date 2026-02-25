@@ -18,6 +18,10 @@
  *******************************************************************************/
 #include "Measurement1D.h"
 
+#ifdef NuHepMC_ENABLED
+#include "NuHepMCInputHandler.h"
+#endif
+
 //********************************************************************
 Measurement1D::Measurement1D(void) {
   //********************************************************************
@@ -675,8 +679,21 @@ void Measurement1D::FinaliseMeasurement() {
   // Search drawopts for possible types to include by default
   std::string drawopts = FitPar::Config().GetParS("drawopts");
   if (drawopts.find("MODES") != std::string::npos) {
-    fMCHist_Modes = new TrueModeStack((fSettings.GetName() + "_MODES").c_str(),
-				      ("True Channels"), fMCHist);
+
+#ifdef NuHepMC_ENABLED
+    auto nuhepmc_inputhandler = dynamic_cast<NuHepMCInputHandler *>(fInput);
+    if (nuhepmc_inputhandler) {
+      fMCHist_Modes = new TrueModeStack(
+          (fSettings.GetName() + "_MODES").c_str(), ("True Channels"), fMCHist,
+          nuhepmc_inputhandler->fprocids);
+    } else {
+#endif
+      fMCHist_Modes = new TrueModeStack(
+          (fSettings.GetName() + "_MODES").c_str(), ("True Channels"), fMCHist);
+#ifdef NuHepMC_ENABLED
+    }
+#endif
+
     fMCHist_Modes ->SetTitleX(fDataHist->GetXaxis()->GetTitle());
     fMCHist_Modes ->SetTitleY(fDataHist->GetYaxis()->GetTitle());
 
@@ -1660,6 +1677,8 @@ void Measurement1D::SetupMeasurement(std::string inputfile, std::string type,
                                      FitWeight *rw, std::string fkdt) {
   //********************************************************************
 
+  (void)fkdt;
+
   nuiskey samplekey = Config::CreateKey("sample");
   samplekey.Set("name", fName);
   samplekey.Set("type", type);
@@ -1749,8 +1768,20 @@ void Measurement1D::SetupDefaultHist() {
     SetBinMask(maskloc);
   }
 
-  fMCHist_Modes =
-      new TrueModeStack((fName + "_MODES").c_str(), ("True Channels"), fMCHist);
+#ifdef NuHepMC_ENABLED
+    auto nuhepmc_inputhandler = dynamic_cast<NuHepMCInputHandler *>(fInput);
+    if (nuhepmc_inputhandler) {
+      fMCHist_Modes = new TrueModeStack(
+          (fName + "_MODES").c_str(), ("True Channels"), fMCHist,
+          nuhepmc_inputhandler->fprocids);
+    } else {
+#endif
+      fMCHist_Modes = new TrueModeStack(
+          (fName + "_MODES").c_str(), ("True Channels"), fMCHist);
+#ifdef NuHepMC_ENABLED
+    }
+#endif
+
   SetAutoProcessTH1(fMCHist_Modes, kCMD_Reset, kCMD_Norm, kCMD_Write);
 
   fMCFine_Modes =
