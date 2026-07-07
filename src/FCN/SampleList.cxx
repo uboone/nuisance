@@ -193,6 +193,7 @@
 #include "MicroBooNE_BNB_NCpi0_2024_XSec_nu.h"
 #include "MicroBooNE_BNB_NumuCC0PiNp_2025_XSec_nu.h"
 #include "MicroBooNE_BNB_NumuCC0Pi_2025_XSec_nu.h"
+#include "MicroBooNE_BNB_NumuCC1pi0Np_2026_XSec_nu.h"
 #endif
 
 #ifdef MINERvA_ENABLED
@@ -1206,6 +1207,39 @@ MeasurementBase *CreateSample(nuiskey samplekey) {
       return (new MicroBooNE_BNB_NumuCC0pNp_2024_XSec_nu<kCCXpAvailEnergyCosThetaMuEMu>(samplekey));
     } else if (!name.compare("MicroBooNE_BNB_NumuCC0pNp_2024_XSec_All_nu")) {
       return (new MicroBooNE_BNB_NumuCC0pNp_2024_XSec_nu<kAllCC>(samplekey));
+    } else if (!name.compare("MicroBooNE_BNB_NumuCC1pi0Np_2026_XSec_KEmu")) {
+      return (new MicroBooNE_BNB_NumuCC1pi0Np_2026_XSec_nu<kCC1pi0NpKEMu>(samplekey));
+    }
+    else if (!name.compare("MicroBooNE_BNB_NumuCC1pi0Np_2026_XSec_CosThetaMu")) {
+      return (new MicroBooNE_BNB_NumuCC1pi0Np_2026_XSec_nu<kCC1pi0NpCosThetaMu>(samplekey));
+    }
+    else if (!name.compare("MicroBooNE_BNB_NumuCC1pi0Np_2026_XSec_KEpi0")) {
+      return (new MicroBooNE_BNB_NumuCC1pi0Np_2026_XSec_nu<kCC1pi0NpKEpi0>(samplekey));
+    }
+    else if (!name.compare("MicroBooNE_BNB_NumuCC1pi0Np_2026_XSec_CosThetapi0")) {
+      return (new MicroBooNE_BNB_NumuCC1pi0Np_2026_XSec_nu<kCC1pi0NpCosThetapi0>(samplekey));
+    }
+    else if (!name.compare("MicroBooNE_BNB_NumuCC1pi0Np_2026_XSec_KEp")) {
+      return (new MicroBooNE_BNB_NumuCC1pi0Np_2026_XSec_nu<kCC1pi0NpKEp>(samplekey));
+    }
+    else if (!name.compare("MicroBooNE_BNB_NumuCC1pi0Np_2026_XSec_CosThetap")) {
+      return (new MicroBooNE_BNB_NumuCC1pi0Np_2026_XSec_nu<kCC1pi0NpCosThetap>(samplekey));
+    }
+    else if (!name.compare("MicroBooNE_BNB_NumuCC1pi0Np_2026_XSec_dpT")) {
+      return (new MicroBooNE_BNB_NumuCC1pi0Np_2026_XSec_nu<kCC1pi0NpdpT>(samplekey));
+    }
+    else if (!name.compare("MicroBooNE_BNB_NumuCC1pi0Np_2026_XSec_dpTx")) {
+      return (new MicroBooNE_BNB_NumuCC1pi0Np_2026_XSec_nu<kCC1pi0NpdpTx>(samplekey));
+    }
+    else if (!name.compare("MicroBooNE_BNB_NumuCC1pi0Np_2026_XSec_dpTy")) {
+      return (new MicroBooNE_BNB_NumuCC1pi0Np_2026_XSec_nu<kCC1pi0NpdpTy>(samplekey));
+    }
+    else if (!name.compare("MicroBooNE_BNB_NumuCC1pi0Np_2026_XSec_daT")) {
+      return (new MicroBooNE_BNB_NumuCC1pi0Np_2026_XSec_nu<kCC1pi0NpdaT>(samplekey));
+      
+    } else if (!name.compare("MicroBooNE_BNB_NumuCC1pi0Np_2026_XSec_All_nu")) {
+      return (new MicroBooNE_BNB_NumuCC1pi0Np_2026_XSec_nu<kAllCC1pi0Np>(samplekey));
+        
     } else if (!name.compare("MicroBooNE_BNB_NumuCCInc_2023_XSec_3D_nu")) {
       return (new MicroBooNE_BNB_NumuCCInc_2023_XSec_3D_nu(samplekey));
 

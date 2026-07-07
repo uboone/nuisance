@@ -63,6 +63,21 @@ enum distribution_t {
   kNC0pNpCosThetaPi0 = 2021,
   kNCXpCosThetaPi0 = 2044,
   kNCXpPpi0CosThetaPi0 = 2061,
+  // numuCC1pi0Np
+  kAllCC1pi0Np = -5 ,
+  
+  kCC1pi0NpKEMu         = 3000,
+  kCC1pi0NpCosThetaMu   = 3008,
+  kCC1pi0NpKEpi0        = 3016,
+  kCC1pi0NpCosThetapi0  = 3024,
+  kCC1pi0NpKEp          = 3032,
+  kCC1pi0NpCosThetap    = 3040,
+  kCC1pi0NpdpT          = 3048,
+  kCC1pi0NpdpTx         = 3054,
+  kCC1pi0NpdpTy         = 3063,
+  kCC1pi0NpdaT          = 3072,
+ 
+  
 };
 
 // define an bin edges container
@@ -238,6 +253,23 @@ inline void LookupTable::cache_realbins<kAllNCpi0>() {
                    kNC0pNpCosThetaPi0,
                    kNCXpCosThetaPi0,
                    kNCXpPpi0CosThetaPi0
+                  >();
+}
+
+// specialization for all CC1pi0Np blocks
+template <>
+inline void LookupTable::cache_realbins<kAllCC1pi0Np>() {
+  this->template cache_realbins<
+              kCC1pi0NpKEMu         ,
+              kCC1pi0NpCosThetaMu   ,
+              kCC1pi0NpKEpi0        ,
+              kCC1pi0NpCosThetapi0  ,
+              kCC1pi0NpKEp          ,
+              kCC1pi0NpCosThetap    ,
+              kCC1pi0NpdpT          ,
+              kCC1pi0NpdpTx         ,
+              kCC1pi0NpdpTy         ,
+              kCC1pi0NpdaT          
                   >();
 }
 

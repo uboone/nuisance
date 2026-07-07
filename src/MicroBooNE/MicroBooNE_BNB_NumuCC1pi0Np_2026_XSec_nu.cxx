@@ -1,0 +1,495 @@
+// Copyright 2016 L. Pickering, P Stowell, R. Terri, C. Wilkinson, C. Wret
+
+/*******************************************************************************
+ *    This file is part of NUISANCE.
+ *
+ *    NUISANCE is free software: you can redistribute it and/or modify
+ *    it under the terms of the GNU General Public License as published by
+ *    the Free Software Foundation, either version 3 of the License, or
+ *    (at your option) any later version.
+ *
+ *    NUISANCE is distributed in the hope that it will be useful,
+ *    but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *    GNU General Public License for more details.
+ *
+ *    You should have received a copy of the GNU General Public License
+ *    along with NUISANCE.  If not, see <http://www.gnu.org/licenses/>.
+ *******************************************************************************/
+
+#include "MicroBooNE_BNB_NumuCC1pi0Np_2026_XSec_nu.h"
+
+#include "TH1D.h"
+#include "TH2D.h"
+#include "WireCellHelper.h"
+
+//********************************************************************
+template <distribution_t D, distribution_t... Ds>
+MicroBooNE_BNB_NumuCC1pi0Np_2026_XSec_nu<D, Ds...>::MicroBooNE_BNB_NumuCC1pi0Np_2026_XSec_nu(
+    nuiskey samplekey) {
+  //********************************************************************
+
+  // Sample overview ---------------------------------------------------
+  std::string descrip = "MicroBooNE_BNB_NumuCC1pi0Np_2026_XSec_nu sample. \n"
+                        "Target: Ar \n"
+                        "Flux: BNB FHC numu \n"
+                        "Signal: CC 1Mu1pi0Np WireCell \n"
+                        "Contact: microboone_info@fnal.gov\n"
+                        "Reference: https://arxiv.org/abs/2606.23559 \n";
+                        
+
+  // Setup common settings
+  fSettings = LoadSampleSettings(samplekey);
+  fSettings.SetDescription(descrip);
+  fSettings.SetXTitle("Bin Number");
+  fSettings.SetYTitle("d#sigma (cm^{2}/^{36}/Ar)");
+
+  fSettings.SetAllowedTypes("FULL,DIAG/FREE,SHAPE,FIX/SYSTCOV/STATCOV",
+                            "FIX/FULL");
+  fSettings.SetEnuRange(0.0, 10.0);
+  fSettings.DefineAllowedTargets("Ar");
+
+  // Plot information
+  fSettings.SetTitle("MicroBooNE_BNB_NumuCC1pi0Np_2026_XSec_nu");
+  fSettings.DefineAllowedSpecies("numu");
+
+  std::string sample_name = fSettings.GetName();
+  FinaliseSampleSettings();
+
+  // Scaling Setup ---------------------------------------------------
+  // ScaleFactor setup for DiffXSec/cm2/Ar nucleus
+ fScaleFactor = ((GetEventHistogram()->Integral("width") / (fNEvents + 0.)) * 1E-38 / (TotalIntegratedFlux())) * 40;
+
+  
+
+  // Setup Histograms
+  CC1Mu1pi0NpHelper<D, Ds...> ana_helper;
+  ana_helper.load_measurement();
+
+  // we access bin numbers and widths for each measurement based on input physics values
+  fTable = ana_helper.get_lookuptable();
+  // we don't use the template arguments and fetch it from here instead
+  // to handle the kAll case
+  fDists = fTable.get_dists();
+  
+
+  // the data histogram
+  fDataHist = (TH1D *)ana_helper.get_data();
+  fDataHist->SetName(Form("%s_data", sample_name.c_str()));
+  ScaleData(1E-36);
+
+  // the measurement covariance
+  fFullCovar = ana_helper.get_cov_m();
+  // convert from 10^-72 -> 10^-76 which nuisance expects
+  (*fFullCovar) *= 1E4;
+
+  // set the errors to the ones from covariance matrix
+  // don't think this is actually needed but atleast suppresses some warnings
+  for(int i = 0; i < fDataHist->GetNbinsX(); i++)
+    fDataHist->SetBinError(i+1, sqrt((*fFullCovar)(i, i))*1E-38);
+
+  // the additional Wiener-SVD Ac smearing matrix
+  fSmearingMatrix = ana_helper.get_ac_m();
+
+  fSaveFine = false;
+  // Final setup  ---------------------------------------------------
+  FinaliseMeasurement();
+
+}
+
+//********************************************************************
+template <distribution_t D, distribution_t... Ds>
+bool MicroBooNE_BNB_NumuCC1pi0Np_2026_XSec_nu<D, Ds...>::isSignal(FitEvent *nvect)
+{
+  return (SignalDef::isCCINC(nvect, 14, EnuMin, EnuMax)) && (nvect->NumFSMuon() == 1);
+}
+
+//********************************************************************
+template <distribution_t D, distribution_t... Ds>
+void MicroBooNE_BNB_NumuCC1pi0Np_2026_XSec_nu<D, Ds...>::FillEventVariables(FitEvent *customEvent)
+{
+
+  if (!isSignal(customEvent)) { // double the work, but it lets us use the below
+                          // functions without error checking
+    fXVar = -999;
+    return;
+  }
+  // ------------------------------------------------------------
+// CC1pi0Np signal definition and observables
+// Signal:
+//   - exactly one pi0
+//   - at least one proton with KE >= 60 MeV
+//   - leading proton KE >= 60 MeV
+//   - muon KE >= 40 MeV
+//   - no charged pion with KE > 40 MeV
+// ------------------------------------------------------------
+
+const double MeV2GeV = 1;
+const double INVALID = -99999.0;
+
+ const double MuonKEThreshold      =40; // 0.040; // GeV
+ const double ProtonKEThreshold    = 60; // 0.060; // GeV
+ const double ChargedPiKEThreshold = 40; //0.040; // GeV
+
+auto SafeCosTheta = [](double pz, double p) {
+  if(p <= 0.0) return -5.0;
+  return pz / p;
+};
+
+auto ClampUnit = [](double x) {
+  if(x >  1.0) return  1.0;
+  if(x < -1.0) return -1.0;
+  return x;
+};
+
+// ------------------------------------------------------------
+// Initialize observables
+// ------------------------------------------------------------
+
+// Muon observables
+double MuonKE       = INVALID;
+double CosThetaMu   = INVALID;
+
+// pi0 observables
+double Pi0KE        = INVALID;
+double Pi0CosTheta  = INVALID;
+
+// Leading-proton observables
+double ProtonKE       = INVALID;
+double ProtonCosTheta = INVALID;
+
+
+double MuonKE_sig       = INVALID;
+double CosThetaMu_sig   = INVALID;
+
+// pi0 observables
+double Pi0KE_sig        = INVALID;
+double Pi0CosTheta_sig  = INVALID;
+
+// Leading-proton observables
+double ProtonKE_sig       = INVALID;
+double ProtonCosTheta_sig = INVALID;
+
+// TKI observables
+double DeltaPT      = INVALID;
+double DeltaAlphaT  = INVALID;
+double DeltaPTx     = INVALID;
+double DeltaPTy     = INVALID;
+
+// Signal counters
+int NPi0 = 0;
+int NProtonAboveThreshold = 0;
+int NChargedPionAboveThreshold = 0;
+
+// Store four-vectors / momentum components in GeV
+double mu_px = INVALID, mu_py = INVALID, mu_pz = INVALID;
+double pi0_px = INVALID, pi0_py = INVALID, pi0_pz = INVALID;
+double p_px = INVALID, p_py = INVALID, p_pz = INVALID;
+
+// ------------------------------------------------------------
+// Muon
+// ------------------------------------------------------------
+
+FitParticle* Muon = customEvent->GetHMFSParticle(13);
+
+bool HasMuon = false;
+
+if(Muon) {
+  double mu_E = Muon->E() * MeV2GeV;
+  double mu_M = Muon->M() * MeV2GeV;
+  double mu_p = Muon->p() * MeV2GeV;
+
+  mu_px = Muon->P3()[0] * MeV2GeV;
+  mu_py = Muon->P3()[1] * MeV2GeV;
+  mu_pz = Muon->P3()[2] * MeV2GeV;
+
+  MuonKE     = mu_E - mu_M;
+  CosThetaMu = SafeCosTheta(mu_pz, mu_p);
+
+  HasMuon = true;
+}
+
+// ------------------------------------------------------------
+// Loop over final-state particles
+// ------------------------------------------------------------
+
+std::vector<int> AllFSIndices = customEvent->GetAllFSParticleIndices(0);
+
+for(int i = 0; i < AllFSIndices.size(); i++) {
+
+  int idx = AllFSIndices.at(i);
+  int pdg = customEvent->GetParticlePDG(idx);
+
+  // Skip muon because it was handled above
+  if(std::abs(pdg) == 13) continue;
+
+  FitParticle* part = customEvent->GetParticle(idx);
+
+  double KE = part->KE() * MeV2GeV;
+  double E  = part->E()  * MeV2GeV;
+  double M  = part->M()  * MeV2GeV;
+  double px = part->P3()[0] * MeV2GeV;
+  double py = part->P3()[1] * MeV2GeV;
+  double pz = part->P3()[2] * MeV2GeV;
+  double p  = part->p() * MeV2GeV;
+
+  // Protection against weird generator records
+  if(E < M) continue;
+
+  // ----------------------------------------------------------
+  // pi0 counting and observables
+  // ----------------------------------------------------------
+  if(pdg == 111) {
+
+    NPi0++;
+
+    // Since the signal requires exactly one pi0, this stores the pi0.
+    // If there are multiple pi0s, the event will fail the signal cut anyway.
+    Pi0KE       = KE ;
+    Pi0CosTheta = SafeCosTheta(pz, p);
+
+    pi0_px = px;
+    pi0_py = py;
+    pi0_pz = pz;
+  }
+
+  // ----------------------------------------------------------
+  // Proton counting and leading-proton observables
+  // ----------------------------------------------------------
+  else if(pdg == 2212) {
+
+    if(KE >= ProtonKEThreshold) {
+      NProtonAboveThreshold++;
+    }
+
+    // Store leading proton by KE
+    if(ProtonKE < 0.0 || KE > ProtonKE) {
+      ProtonKE       = KE;
+      ProtonCosTheta = SafeCosTheta(pz, p);
+
+      p_px = px;
+      p_py = py;
+      p_pz = pz;
+    }
+  }
+
+  // ----------------------------------------------------------
+  // Charged pion veto
+  // ----------------------------------------------------------
+  else if(std::abs(pdg) == 211) {
+
+    if(KE > ChargedPiKEThreshold) {
+      NChargedPionAboveThreshold++;
+    }
+  }
+}
+
+// ------------------------------------------------------------
+// Signal definition
+// ------------------------------------------------------------
+
+bool PassMuon = HasMuon && MuonKE >= MuonKEThreshold;
+
+bool PassPi0 = NPi0 == 1;
+
+bool PassProton =
+  NProtonAboveThreshold >= 1 &&
+  ProtonKE >= ProtonKEThreshold;
+
+bool PassChargedPionVeto =
+  NChargedPionAboveThreshold == 0;
+
+bool IsCC1pi0NpSignal =
+  PassMuon &&
+  PassPi0 &&
+  PassProton &&
+  PassChargedPionVeto;
+
+// ------------------------------------------------------------
+// Calculate TKI variables using:
+//   muon + pi0 + leading proton
+// ------------------------------------------------------------
+
+
+if (IsCC1pi0NpSignal){
+
+ MuonKE_sig       = MuonKE;
+ CosThetaMu_sig   = CosThetaMu;
+
+// pi0 observables
+ Pi0KE_sig        = Pi0KE;
+ Pi0CosTheta_sig  = Pi0CosTheta;
+
+// Leading-proton observables
+ ProtonKE_sig       = ProtonKE;
+ ProtonCosTheta_sig = ProtonCosTheta;
+
+}
+
+if(IsCC1pi0NpSignal) {
+
+ 
+  // delta pT components
+  double delta_pT_x_comp = mu_px + pi0_px + p_px;
+  double delta_pT_y_comp = mu_py + pi0_py + p_py;
+
+  // delta pT magnitude
+  DeltaPT = std::sqrt(
+    delta_pT_x_comp * delta_pT_x_comp +
+    delta_pT_y_comp * delta_pT_y_comp
+  );
+
+  // muon transverse momentum magnitude
+  double muT_mag = std::sqrt(mu_px * mu_px + mu_py * mu_py);
+
+  // delta alpha_T
+  if(muT_mag > 0.0 && DeltaPT > 0.0) {
+
+    double numerator =
+      -mu_px * delta_pT_x_comp -
+       mu_py * delta_pT_y_comp;
+
+    double denominator = muT_mag * DeltaPT;
+
+    double cos_alphaT = ClampUnit(numerator / denominator);
+
+    DeltaAlphaT = (180.0 / M_PI) * std::acos(cos_alphaT);
+
+    // delta pTx and delta pTy
+    double muT_hat_x = mu_px / muT_mag;
+    double muT_hat_y = mu_py / muT_mag;
+
+    double z_cross_muT_hat_x = -muT_hat_y;
+    double z_cross_muT_hat_y =  muT_hat_x;
+
+    DeltaPTx =
+      z_cross_muT_hat_x * delta_pT_x_comp +
+      z_cross_muT_hat_y * delta_pT_y_comp;
+
+    DeltaPTy =
+      -muT_hat_x * delta_pT_x_comp -
+       muT_hat_y * delta_pT_y_comp;
+  }
+}
+
+  int curr_bin = 0;
+  // loop over our blocks
+  for(auto it = fDists.begin(); it != fDists.end(); ++it){
+    distribution_t dist = *it;
+    int nblockbins = fTable.get_nbins(dist);
+    int localbin = -1;
+
+    switch(dist){
+      case kCC1pi0NpKEMu:
+        localbin = fTable.find_bin(dist, MuonKE_sig);
+        
+        break;
+      case kCC1pi0NpCosThetaMu:
+        localbin = fTable.find_bin(dist, CosThetaMu_sig);
+        break;
+      case kCC1pi0NpKEpi0:
+        localbin = fTable.find_bin(dist, Pi0KE_sig);
+        break;
+      case kCC1pi0NpCosThetapi0:
+        localbin = fTable.find_bin(dist, Pi0CosTheta_sig);
+        break;
+      case kCC1pi0NpKEp:
+        localbin = fTable.find_bin(dist, ProtonKE_sig);
+        break;
+      case kCC1pi0NpCosThetap:
+        localbin = fTable.find_bin(dist, ProtonCosTheta_sig);
+        break;
+      case kCC1pi0NpdpT:
+        localbin = fTable.find_bin(dist, DeltaPT);
+        break;
+      case kCC1pi0NpdpTx:
+        localbin = fTable.find_bin(dist, DeltaPTx);
+        break;
+      case kCC1pi0NpdpTy:
+        localbin = fTable.find_bin(dist, DeltaPTy );
+        break;
+    case kCC1pi0NpdaT:
+      break;
+    }
+    // don't do anything else here
+    // we fill in our own FillHistograms directly
+    // since an event can belong to multiple bins
+    
+
+    fXVars[dist] = (localbin < 0) ? -999 : localbin + curr_bin;
+    curr_bin += nblockbins;
+  }
+}
+
+//********************************************************************
+template <distribution_t D, distribution_t... Ds>
+void MicroBooNE_BNB_NumuCC1pi0Np_2026_XSec_nu<D, Ds...>::FillHistograms() {
+  // loop over our blocks and fill for each one of them
+  for(auto it = fDists.begin(); it != fDists.end(); ++it){
+    distribution_t dist = *it;
+    fXVar = fXVars[dist];
+    Measurement1D::FillHistograms();
+  }
+}
+
+//********************************************************************
+template <distribution_t D, distribution_t... Ds>
+void MicroBooNE_BNB_NumuCC1pi0Np_2026_XSec_nu<D, Ds...>::ConvertEventRates() {
+
+  // standard conversion
+  Measurement1D::ConvertEventRates();
+  int curr_bin = 0;
+  // loop over our blocks
+  for(auto it = fDists.begin(); it != fDists.end(); ++it){
+    distribution_t dist = *it;
+    int nblockbins = fTable.get_nbins(dist);
+    // loop through the block
+    for(int i = 0; i < nblockbins; i++){
+      // convert to differential xsec by scaling it wrt the bin widths
+      double bin_width = fTable.get_width(dist, i);
+
+    
+
+
+      fMCHist->SetBinContent(
+          curr_bin + i + 1,
+          fMCHist->GetBinContent(curr_bin + i + 1)/(bin_width)
+      );
+
+      fMCHist->SetBinError(
+          curr_bin + i + 1,
+          fMCHist->GetBinError(curr_bin + i + 1)/(bin_width)
+      );
+    }
+
+    curr_bin += nblockbins;
+  }
+
+  // now apply Wiener-SVD Ac smearing
+  int n = fMCHist->GetNbinsX();
+  TVectorD v(n), e(n);
+  for (int i = 0; i < n; i++) {
+    v(i) = fMCHist->GetBinContent(i + 1);
+    e(i) = std::pow(fMCHist->GetBinError(i + 1), 2);
+  }
+
+  TVectorD vs =  (*fSmearingMatrix)  * v;
+  TVectorD es =  (*fSmearingMatrix) * e; 
+
+  for (int i = 0; i < n; i++) {
+    fMCHist->SetBinContent(i + 1, vs(i));
+    fMCHist->SetBinError(i + 1, std::sqrt(es(i)));
+  }
+}
+
+template class MicroBooNE_BNB_NumuCC1pi0Np_2026_XSec_nu<kCC1pi0NpKEMu>;
+template class MicroBooNE_BNB_NumuCC1pi0Np_2026_XSec_nu<kCC1pi0NpCosThetaMu>;
+template class MicroBooNE_BNB_NumuCC1pi0Np_2026_XSec_nu<kCC1pi0NpKEpi0>;
+template class MicroBooNE_BNB_NumuCC1pi0Np_2026_XSec_nu<kCC1pi0NpCosThetapi0>;
+template class MicroBooNE_BNB_NumuCC1pi0Np_2026_XSec_nu<kCC1pi0NpKEp>;
+template class MicroBooNE_BNB_NumuCC1pi0Np_2026_XSec_nu<kCC1pi0NpCosThetap>;
+template class MicroBooNE_BNB_NumuCC1pi0Np_2026_XSec_nu<kCC1pi0NpdpT>;
+template class MicroBooNE_BNB_NumuCC1pi0Np_2026_XSec_nu<kCC1pi0NpdpTx>;
+template class MicroBooNE_BNB_NumuCC1pi0Np_2026_XSec_nu<kCC1pi0NpdpTy>;
+template class MicroBooNE_BNB_NumuCC1pi0Np_2026_XSec_nu<kCC1pi0NpdaT>;
+template class MicroBooNE_BNB_NumuCC1pi0Np_2026_XSec_nu<kAllCC1pi0Np>;
