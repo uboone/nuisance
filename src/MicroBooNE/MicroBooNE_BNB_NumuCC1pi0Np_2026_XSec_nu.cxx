@@ -99,9 +99,96 @@ MicroBooNE_BNB_NumuCC1pi0Np_2026_XSec_nu<D, Ds...>::MicroBooNE_BNB_NumuCC1pi0Np_
 
 //********************************************************************
 template <distribution_t D, distribution_t... Ds>
-bool MicroBooNE_BNB_NumuCC1pi0Np_2026_XSec_nu<D, Ds...>::isSignal(FitEvent *nvect)
+bool MicroBooNE_BNB_NumuCC1pi0Np_2026_XSec_nu<D, Ds...>::isSignal(FitEvent *customEvent)
 {
-  return (SignalDef::isCCINC(nvect, 14, EnuMin, EnuMax)) && (nvect->NumFSMuon() == 1);
+
+const double INVALID = -99999.0;
+
+const double MuonKEThreshold      = 40.0;
+const double ProtonKEThreshold    = 60.0;
+const double ChargedPiKEThreshold = 40.0;
+
+// Observables
+double MuonKE   = INVALID;
+double Pi0KE    = INVALID;
+double ProtonKE = INVALID;
+
+// Counters
+int NPi0 = 0;
+int NProtonAboveThreshold = 0;
+int NChargedPionAboveThreshold = 0;
+
+// ------------------------------------------------------------
+// Muon
+// ------------------------------------------------------------
+FitParticle* Muon = customEvent->GetHMFSParticle(13);
+
+const bool HasMuon = (Muon != nullptr);
+
+if (HasMuon) {
+  MuonKE = Muon->E() - Muon->M();
+}
+
+// ------------------------------------------------------------
+// Final-state particles
+// ------------------------------------------------------------
+const std::vector<int> AllFSIndices = customEvent->GetAllFSParticleIndices(0);
+
+for (const int idx : AllFSIndices) {
+
+  const int pdg = customEvent->GetParticlePDG(idx);
+
+  // Muon is handled separately
+  if (std::abs(pdg) == 13) continue;
+
+  FitParticle* part = customEvent->GetParticle(idx);
+  if (!part) continue;
+
+  const double E  = part->E();
+  const double M  = part->M();
+
+  // Protection against weird generator records
+  if (E < M) continue;
+
+  const double KE = part->KE();
+
+  if (pdg == 111) {
+    NPi0++;
+    Pi0KE = KE;
+  }
+  else if (pdg == 2212) {
+    if (KE >= ProtonKEThreshold) {
+      NProtonAboveThreshold++;
+    }
+
+    // Leading proton by KE
+    if (ProtonKE < 0.0 || KE > ProtonKE) {
+      ProtonKE = KE;
+    }
+  }
+  else if (std::abs(pdg) == 211) {
+    if (KE > ChargedPiKEThreshold) {
+      NChargedPionAboveThreshold++;
+    }
+  }
+}
+
+// ------------------------------------------------------------
+// Signal definition
+// ------------------------------------------------------------
+const bool IsCC1pi0NpSignal =
+  HasMuon &&
+  MuonKE >= MuonKEThreshold &&
+  NPi0 == 1 &&
+  NProtonAboveThreshold >= 1 &&
+  ProtonKE >= ProtonKEThreshold &&
+  NChargedPionAboveThreshold == 0;
+
+
+
+
+  return IsCC1pi0NpSignal;
+
 }
 
 //********************************************************************
@@ -114,18 +201,9 @@ void MicroBooNE_BNB_NumuCC1pi0Np_2026_XSec_nu<D, Ds...>::FillEventVariables(FitE
     fXVar = -999;
     return;
   }
-  // ------------------------------------------------------------
-// CC1pi0Np signal definition and observables
-// Signal:
-//   - exactly one pi0
-//   - at least one proton with KE >= 60 MeV
-//   - leading proton KE >= 60 MeV
-//   - muon KE >= 40 MeV
-//   - no charged pion with KE > 40 MeV
-// ------------------------------------------------------------
 
-const double MeV2GeV = 1;
-const double INVALID = -99999.0;
+
+ const double INVALID = -99999.0;
 
  const double MuonKEThreshold      =40; // 0.040; // GeV
  const double ProtonKEThreshold    = 60; // 0.060; // GeV
@@ -159,27 +237,13 @@ double ProtonKE       = INVALID;
 double ProtonCosTheta = INVALID;
 
 
-double MuonKE_sig       = INVALID;
-double CosThetaMu_sig   = INVALID;
-
-// pi0 observables
-double Pi0KE_sig        = INVALID;
-double Pi0CosTheta_sig  = INVALID;
-
-// Leading-proton observables
-double ProtonKE_sig       = INVALID;
-double ProtonCosTheta_sig = INVALID;
-
 // TKI observables
 double DeltaPT      = INVALID;
 double DeltaAlphaT  = INVALID;
 double DeltaPTx     = INVALID;
 double DeltaPTy     = INVALID;
 
-// Signal counters
-int NPi0 = 0;
-int NProtonAboveThreshold = 0;
-int NChargedPionAboveThreshold = 0;
+
 
 // Store four-vectors / momentum components in GeV
 double mu_px = INVALID, mu_py = INVALID, mu_pz = INVALID;
@@ -195,13 +259,13 @@ FitParticle* Muon = customEvent->GetHMFSParticle(13);
 bool HasMuon = false;
 
 if(Muon) {
-  double mu_E = Muon->E() * MeV2GeV;
-  double mu_M = Muon->M() * MeV2GeV;
-  double mu_p = Muon->p() * MeV2GeV;
+  double mu_E = Muon->E() ;
+  double mu_M = Muon->M() ;
+  double mu_p = Muon->p() ;
 
-  mu_px = Muon->P3()[0] * MeV2GeV;
-  mu_py = Muon->P3()[1] * MeV2GeV;
-  mu_pz = Muon->P3()[2] * MeV2GeV;
+  mu_px = Muon->P3()[0] ;
+  mu_py = Muon->P3()[1] ;
+  mu_pz = Muon->P3()[2] ;
 
   MuonKE     = mu_E - mu_M;
   CosThetaMu = SafeCosTheta(mu_pz, mu_p);
@@ -225,13 +289,13 @@ for(int i = 0; i < AllFSIndices.size(); i++) {
 
   FitParticle* part = customEvent->GetParticle(idx);
 
-  double KE = part->KE() * MeV2GeV;
-  double E  = part->E()  * MeV2GeV;
-  double M  = part->M()  * MeV2GeV;
-  double px = part->P3()[0] * MeV2GeV;
-  double py = part->P3()[1] * MeV2GeV;
-  double pz = part->P3()[2] * MeV2GeV;
-  double p  = part->p() * MeV2GeV;
+  double KE = part->KE() ;
+  double E  = part->E()  ;
+  double M  = part->M()  ;
+  double px = part->P3()[0] ;
+  double py = part->P3()[1] ;
+  double pz = part->P3()[2] ;
+  double p  = part->p() ;
 
   // Protection against weird generator records
   if(E < M) continue;
@@ -240,8 +304,6 @@ for(int i = 0; i < AllFSIndices.size(); i++) {
   // pi0 counting and observables
   // ----------------------------------------------------------
   if(pdg == 111) {
-
-    NPi0++;
 
     // Since the signal requires exactly one pi0, this stores the pi0.
     // If there are multiple pi0s, the event will fail the signal cut anyway.
@@ -258,9 +320,7 @@ for(int i = 0; i < AllFSIndices.size(); i++) {
   // ----------------------------------------------------------
   else if(pdg == 2212) {
 
-    if(KE >= ProtonKEThreshold) {
-      NProtonAboveThreshold++;
-    }
+  
 
     // Store leading proton by KE
     if(ProtonKE < 0.0 || KE > ProtonKE) {
@@ -273,60 +333,13 @@ for(int i = 0; i < AllFSIndices.size(); i++) {
     }
   }
 
-  // ----------------------------------------------------------
-  // Charged pion veto
-  // ----------------------------------------------------------
-  else if(std::abs(pdg) == 211) {
-
-    if(KE > ChargedPiKEThreshold) {
-      NChargedPionAboveThreshold++;
-    }
-  }
-}
-
-// ------------------------------------------------------------
-// Signal definition
-// ------------------------------------------------------------
-
-bool PassMuon = HasMuon && MuonKE >= MuonKEThreshold;
-
-bool PassPi0 = NPi0 == 1;
-
-bool PassProton =
-  NProtonAboveThreshold >= 1 &&
-  ProtonKE >= ProtonKEThreshold;
-
-bool PassChargedPionVeto =
-  NChargedPionAboveThreshold == 0;
-
-bool IsCC1pi0NpSignal =
-  PassMuon &&
-  PassPi0 &&
-  PassProton &&
-  PassChargedPionVeto;
+ 
 
 // ------------------------------------------------------------
 // Calculate TKI variables using:
 //   muon + pi0 + leading proton
 // ------------------------------------------------------------
 
-
-if (IsCC1pi0NpSignal){
-
- MuonKE_sig       = MuonKE;
- CosThetaMu_sig   = CosThetaMu;
-
-// pi0 observables
- Pi0KE_sig        = Pi0KE;
- Pi0CosTheta_sig  = Pi0CosTheta;
-
-// Leading-proton observables
- ProtonKE_sig       = ProtonKE;
- ProtonCosTheta_sig = ProtonCosTheta;
-
-}
-
-if(IsCC1pi0NpSignal) {
 
  
   // delta pT components
@@ -370,7 +383,7 @@ if(IsCC1pi0NpSignal) {
       -muT_hat_x * delta_pT_x_comp -
        muT_hat_y * delta_pT_y_comp;
   }
-}
+
 
   int curr_bin = 0;
   // loop over our blocks
@@ -381,23 +394,23 @@ if(IsCC1pi0NpSignal) {
 
     switch(dist){
       case kCC1pi0NpKEMu:
-        localbin = fTable.find_bin(dist, MuonKE_sig);
+        localbin = fTable.find_bin(dist, MuonKE);
         
         break;
       case kCC1pi0NpCosThetaMu:
-        localbin = fTable.find_bin(dist, CosThetaMu_sig);
+        localbin = fTable.find_bin(dist, CosThetaMu);
         break;
       case kCC1pi0NpKEpi0:
-        localbin = fTable.find_bin(dist, Pi0KE_sig);
+        localbin = fTable.find_bin(dist, Pi0KE);
         break;
       case kCC1pi0NpCosThetapi0:
-        localbin = fTable.find_bin(dist, Pi0CosTheta_sig);
+        localbin = fTable.find_bin(dist, Pi0CosTheta);
         break;
       case kCC1pi0NpKEp:
-        localbin = fTable.find_bin(dist, ProtonKE_sig);
+        localbin = fTable.find_bin(dist, ProtonKE);
         break;
       case kCC1pi0NpCosThetap:
-        localbin = fTable.find_bin(dist, ProtonCosTheta_sig);
+        localbin = fTable.find_bin(dist, ProtonCosTheta);
         break;
       case kCC1pi0NpdpT:
         localbin = fTable.find_bin(dist, DeltaPT);
@@ -409,6 +422,7 @@ if(IsCC1pi0NpSignal) {
         localbin = fTable.find_bin(dist, DeltaPTy );
         break;
     case kCC1pi0NpdaT:
+        localbin = fTable.find_bin(dist, DeltaAlphaT );
       break;
     }
     // don't do anything else here
@@ -420,7 +434,7 @@ if(IsCC1pi0NpSignal) {
     curr_bin += nblockbins;
   }
 }
-
+}
 //********************************************************************
 template <distribution_t D, distribution_t... Ds>
 void MicroBooNE_BNB_NumuCC1pi0Np_2026_XSec_nu<D, Ds...>::FillHistograms() {
@@ -475,6 +489,7 @@ void MicroBooNE_BNB_NumuCC1pi0Np_2026_XSec_nu<D, Ds...>::ConvertEventRates() {
 
   TVectorD vs =  (*fSmearingMatrix)  * v;
   TVectorD es =  (*fSmearingMatrix) * e; 
+
 
   for (int i = 0; i < n; i++) {
     fMCHist->SetBinContent(i + 1, vs(i));
