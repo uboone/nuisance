@@ -25,6 +25,7 @@ set(MicroBooNE_Impl_Files
   MicroBooNE_BNB_NueCC0piNp_2022_XSec_1D_nu.cxx
   MicroBooNE_BNB_NueCC0piProtonKE_2022_XSec_1D_nu.cxx
   MicroBooNE_BNB_NumuCC0pNp_2024_XSec_nu.cxx
+  MicroBooNE_BNB_NumuCC1pi0Np_2026_XSec_nu.cxx
   MicroBooNE_BNB_NumuCCInc_2023_XSec_3D_nu.cxx
   MicroBooNE_BNB_NCpi0_2024_XSec_nu.cxx
   MicroBooNE_BNB_NumuCC0PiNp_2025_XSec_nu.cxx
@@ -41,6 +42,7 @@ set(MicroBooNE_Hdr_Files
   MicroBooNE_BNB_NueCC0piNp_2022_XSec_1D_nu.h
   MicroBooNE_BNB_NueCC0piProtonKE_2022_XSec_1D_nu.h
   MicroBooNE_BNB_NumuCC0pNp_2024_XSec_nu.h
+  MicroBooNE_BNB_NumuCC1pi0Np_2026_XSec_nu.h
   MicroBooNE_BNB_NumuCCInc_2023_XSec_3D_nu.h
   MicroBooNE_BNB_NCpi0_2024_XSec_nu.h
   MicroBooNE_BNB_NumuCC0PiNp_2025_XSec_nu.h
